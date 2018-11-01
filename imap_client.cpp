@@ -101,21 +101,23 @@ struct Imap_Client {
             exit(-1);
         }
 
-        for(ptr = result; !ptr; ptr = ptr->ai_next) {
+        for(ptr = result; ptr; ptr = ptr->ai_next) {
             if(ptr->ai_family == AF_INET) {
                 csocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-                if(csocket < 0) {
+                if(csocket == -1) {
                     printf("failed to establish socket with error: %i\n", csocket); 
+                    delete_winsock(); 
+                    exit(-1);
                 }
+                res = connect(csocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+                if(res == -1) {
+                    close(csocket);
+                    csocket = 0;
+                    continue;
+                }
+                break;
             }
     
-            res = connect(csocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-            if(res < 0) {
-                close(csocket);
-                csocket = 0;
-                continue;
-            }
-            break;
         }
 
         freeaddrinfo(result);
@@ -129,6 +131,21 @@ struct Imap_Client {
         printf("established connection\n");
     }
 
+    void send_data(char *data) {
+        printf("sending: %s\n", data);
+        size_t bytes = send(csocket, (const char*)data, strlen(data), 0);
+    }
+
+#define BUFFER_SIZE 1024
+    char buffer[BUFFER_SIZE];
+    void recv_data() {
+        memset(buffer, 0, BUFFER_SIZE); 
+
+        recv(csocket, buffer, BUFFER_SIZE, 0);
+
+        printf("recv:------------\n%s\n------------\n", buffer);
+    }
+
     void disconnect() {
         if(csocket) {
             close(csocket);
@@ -139,20 +156,49 @@ struct Imap_Client {
 
 };
 
-int main(int argc, char **argv) {
-    if(argc < 3) {
-        printf("invalid input!\nUsage: ./imap_client <server> <port>\n");
-        return 0;
-    }
+void loop(Imap_Client *client) {
+#define BUFFER_SIZE 1024
+    char buffer[BUFFER_SIZE];
+    for(;;) {
+        memset(buffer, 0, BUFFER_SIZE);
+        scanf("%s", buffer);
 
+        if(buffer[0] == '!') {
+            switch(buffer[1]) {
+                case 'q':
+                    return;
+                case 's':
+                    client->send_data(buffer + 2);
+                    break;
+                    case 'r':
+                    client->recv_data();
+                default:
+                    printf("invalid command\n");
+            }
+        } else {
+            printf("invalid command\n");
+        }
+    } 
+
+}
+
+int main(void) {
     printf("Starting imap client\n");
 
-    printf("server: %s\n", argv[1]);
-    printf("port: %s\n", argv[2]);
-    
+    char server[256] = {0};
+    char port[256] = {0};
+
+    printf("server: ");
+    scanf("%s", server);
+
+    printf("port: ");
+    scanf("%s", port);
+
     Imap_Client client;
 
-    client.init(argv[1], argv[2]);
+    client.init(server, port);
+
+    loop(&client);
 
     client.disconnect();
 
