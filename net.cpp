@@ -70,14 +70,18 @@ void print_socket_err(int err) {
 
 
 
-struct Imap_Client {
+struct Net_Client {
     socket_t csocket = 0;    
 
-    Imap_Client() {
+    void (*on_recv)(char*, size_t);
+
+    Net_Client(void (*on_recv)(char*, size_t)) {
         init_winsock();
+
+        this->on_recv = on_recv;
     }
 
-    ~Imap_Client() {
+    ~Net_Client() {
         if(csocket) {
             close(csocket);
         }
@@ -141,7 +145,9 @@ struct Imap_Client {
     void recv_data() {
         memset(buffer, 0, BUFFER_SIZE); 
 
-        recv(csocket, buffer, BUFFER_SIZE, 0);
+        size_t size = recv(csocket, buffer, BUFFER_SIZE, 0);
+
+        this->on_recv(buffer, size);
 
         printf("recv:------------\n%s\n------------\n", buffer);
     }
@@ -156,7 +162,7 @@ struct Imap_Client {
 
 };
 
-void loop(Imap_Client *client) {
+void loop(Net_Client *client) {
 #define BUFFER_SIZE 1024
     char buffer[BUFFER_SIZE];
     for(;;) {
@@ -168,10 +174,11 @@ void loop(Imap_Client *client) {
                 case 'q':
                     return;
                 case 's':
-                    client->send_data(buffer + 2);
+                    client->send_data(buffer + 3);
                     break;
-                    case 'r':
+                case 'r':
                     client->recv_data();
+                    break;
                 default:
                     printf("invalid command\n");
             }
@@ -194,7 +201,9 @@ int main(void) {
     printf("port: ");
     scanf("%s", port);
 
-    Imap_Client client;
+    Net_Client client([](char *data, size_t size) {
+        printf("recv:-----\n%s\n-----\n", data);
+    });
 
     client.init(server, port);
 
