@@ -3,6 +3,8 @@
 #include <ctime>
 #include <cstring>
 
+#include <curses.h>
+
 #ifdef _WIN32
 
 typedef SOCKET socket_t;
@@ -189,8 +191,16 @@ void loop(Net_Client *client) {
 
 }
 
+void quit() {
+    endwin();
+}
+
 int main(void) {
-    printf("Starting imap client\n");
+    printf("Starting net client\n");
+
+    initscr();
+
+    atexit(&quit);
 
     char server[256] = {0};
     char port[256] = {0};
